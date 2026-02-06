@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TexEditor - Online LaTeX to PDF Tool</title>
+    
+    <!-- MathJax for rendering LaTeX -->
+    <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        packages: {'[+]': ['noerrors', 'noundefined']}
+      },
+      svg: {
+        fontCache: 'global'
+      },
+      startup: {
+        typeset: false // We will typeset manually
+      }
+    };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #1e1e1e;
+            --sidebar-bg: #252526;
+            --text-color: #d4d4d4;
+            --accent-color: #007acc;
+            --accent-hover: #005f9e;
+            --border-color: #3e3e42;
+            --paper-color: #ffffff;
+            --paper-text: #000000;
+            --toolbar-bg: #333333;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* --- Header --- */
+        header {
+            background-color: var(--sidebar-bg);
+            padding: 0 20px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .brand {
+            font-weight: bold;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .brand span {
+            color: var(--accent-color);
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .btn {
+            background-color: var(--toolbar-bg);
+            color: white;
+            border: 1px solid var(--border-color);
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            background-color: var(--border-color);
+        }
+
+        .btn-primary {
+            background-color: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--accent-hover);
+        }
+
+        /* --- Main Layout --- */
+        main {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 60px);
+        }
+
+        /* --- Editor Section --- */
+        .editor-pane {
+            width: 50%;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+            background-color: var(--bg-color);
+        }
+
+        .toolbar {
+            padding: 10px;
+            background-color: var(--sidebar-bg);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+
+        .tool-btn {
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--text-color);
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-family: 'Times New Roman', serif;
+            font-size: 1.1rem;
+        }
+
+        .tool-btn:hover {
+            background-color: rgba(255,255,255,0.1);
+            border-color: var(--border-color);
+        }
+
+        .code-container {
+            flex: 1;
+            position: relative;
+            display: flex;
+            overflow: hidden;
+        }
+
+        textarea#latex-input {
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            color: #d4d4d4;
+            border: none;
+            padding: 20px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: none;
+            outline: none;
+            white-space: pre;
+            overflow: auto;
+        }
+
+        /* --- Preview Section --- */
+        .preview-pane {
+            width: 50%;
+            background-color: #525659; /* Standard PDF viewer grey */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .status-bar {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        
+        .status-bar.visible {
+            opacity: 1;
+        }
+
+        /* The "Paper" */
+        #paper {
+            background-color: var(--paper-color);
+            color: var(--paper-text);
+            width: 210mm; /* A4 width */
+            min-height: 297mm; /* A4 height */
+            padding: 25mm;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            font-family: 'Computer Modern Serif', 'Times New Roman', serif;
+            font-size: 12pt;
+            line-height: 1.6;
+            text-align: justify;
+            margin-bottom: 40px;
+        }
+
+        /* Typography inside the paper */
+        #paper h1 { font-size: 24pt; text-align: center; margin-bottom: 20px; font-weight: bold; }
+        #paper h2 { font-size: 18pt; margin-top: 25px; margin-bottom: 15px; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+        #paper p { margin-bottom: 12px; }
+        
+        /* MathJax overrides for the paper */
+        #paper .mjx-chtml { color: black !important; }
+
+        /* --- Print Styles (PDF Generation) --- */
+        @media print {
+            body {
+                background: white;
+                height: auto;
+                display: block;
+            }
+            header, .editor-pane, .status-bar {
+                display: none !important;
+            }
+            .preview-pane {
+                width: 100%;
+                background: white;
+                padding: 0;
+                margin: 0;
+                display: block;
+                overflow: visible;
+            }
+            #paper {
+                box-shadow: none;
+                margin: 0;
+                width: 100%;
+                min-height: auto;
+                padding: 0;
+                border: none;
+            }
+            @page {
+                margin: 20mm;
+                size: A4;
+            }
+        }
+
+        /* --- Responsive --- */
+        @media (max-width: 768px) {
+            main {
+                flex-direction: column;
+            }
+            .editor-pane, .preview-pane {
+                width: 100%;
+                height: 50%;
+            }
+            .toolbar {
+                overflow-x: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="brand">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+            Tex<span>Editor</span>
+        </div>
+        <div class="header-actions">
+            <button class="btn" onclick="loadExample()">Load Example</button>
+            <button class="btn" onclick="clearEditor()">Clear</button>
+            <button class="btn btn-primary" onclick="generatePDF()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Save as PDF
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main>
+        <!-- Left: Editor -->
+        <section class="editor-pane">
+            <div class="toolbar">
+                <button class="tool-btn" title="Bold" onclick="insertAtCursor('\\textbf{}')"><b>B</b></button>
+                <button class="tool-btn" title="Italic" onclick="insertAtCursor('\\textit{}')"><i>I</i></button>
+                <button class="tool-btn" title="Underline" onclick="insertAtCursor('\\underline{}')"><u>U</u></button>
+                <div style="width:1px; background:var(--border-color); margin:0 5px;"></div>
+                <button class="tool-btn" title="Fraction" onclick="insertAtCursor('\\frac{}{}')">&frac12;</button>
+                <button class="tool-btn" title="Square Root" onclick="insertAtCursor('\\sqrt{}')">&radic;</button>
+                <button class="tool-btn" title="Summation" onclick="insertAtCursor('\\sum_{i=0}^{n}')">&sum;</button>
+                <button class="tool-btn" title="Integral" onclick="insertAtCursor('\\int_{a}^{b}')">&int;</button>
+                <button class="tool-btn" title="Inline Math" onclick="insertAtCursor('$ $')">$...$</button>
+                <button class="tool-btn" title="Block Math" onclick="insertAtCursor('$$ $$')">&int;...</button>
+                <div style="width:1px; background:var(--border-color); margin:0 5px;"></div>
+                <button class="tool-btn" title="Section" onclick="insertAtCursor('\\section{}')">H1</button>
+                <button class="tool-btn" title="Subsection" onclick="insertAtCursor('\\subsection{}')">H2</button>
+            </div>
+            <div class="code-container">
+                <textarea id="latex-input" spellcheck="false" placeholder="Type LaTeX code here..."></textarea>
+            </div>
+        </section>
+
+        <!-- Right: Preview -->
+        <section class="preview-pane">
+            <div class="status-bar" id="status-bar">Compiling...</div>
+            <div id="paper">
+                <!-- Rendered content goes here -->
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // --- DOM Elements ---
+        const textarea = document.getElementById('latex-input');
+        const paper = document.getElementById('paper');
+        const statusBar = document.getElementById('status-bar');
+
+        // --- Initial Template ---
+        const defaultContent = `\\documentclass{article}
+\\title{My First Document}
+\\author{John Doe}
+\\date{\\today}
+
+% This is a comment. 
+% Use standard text or wrap math in $ symbols.
+
+\\section{Introduction}
+Welcome to the \\textbf{TexEditor}. This is a simple tool to write \\LaTeX{} style documents in your browser.
+
+\\section{Mathematics}
+Here is an inline equation: $E = mc^2$.
+
+Here is a block equation:
+ $$ 
+f(x) = \\int_{-\\infty}^{\\infty} \\hat f(\\xi)\\,e^{2 \\pi i \\xi x} \\,d\\xi
+ $$ 
+We can also do matrices:
+ $$ A = \\begin{pmatrix}
+a & b \\\\
+c & d
+\\end{pmatrix}
+ $$ 
+\\section{Lists}
+\\begin{itemize}
+    \\item Item One
+    \\item Item Two
+    \\item \\textit{Italic Item}
+\\end{itemize}
+
+\\section{Conclusion}
+Click "Save as PDF" to download this document.
+`;
+
+        // --- Logic ---
+
+        // Load default content on start
+        window.addEventListener('DOMContentLoaded', () => {
+            // We strip the documentclass part for the visual preview to make it cleaner
+            // But for a real editor, we might keep it. Here we will render everything.
+            textarea.value = defaultContent;
+            updatePreview();
+        });
+
+        // Debounce function to prevent rendering on every single keystroke
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                const context = this;
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(context, args), wait);
+            };
+        }
+
+        // Show compilation status
+        function showStatus(msg) {
+            statusBar.textContent = msg;
+            statusBar.classList.add('visible');
+            setTimeout(() => {
+                statusBar.classList.remove('visible');
+            }, 2000);
+        }
+
+        // Update the Preview
+        const updatePreview = debounce(async () => {
+            showStatus('Compiling...');
+            
+            // Get raw text
+            const rawTex = textarea.value;
+
+            // Simple Pre-processing for visual rendering
+            // We convert specific LaTeX commands to HTML tags to simulate a document
+            // MathJax will handle the math parts, we handle structure.
+            let htmlContent = rawTex
+                // Handle basic sections
+                .replace(/\\section\{(.*?)\}/g, '<h1>$1</h1>')
+                .replace(/\\subsection\{(.*?)\}/g, '<h2>$1</h2>')
+                .replace(/\\subsubsection\{(.*?)\}/g, '<h3>$1</h3>')
+                // Handle basic text formatting
+                .replace(/\\textbf\{(.*?)\}/g, '<b>$1</b>')
+                .replace(/\\textit\{(.*?)\}/g, '<i>$1</i>')
+                .replace(/\\underline\{(.*?)\}/g, '<u>$1</u>')
+                // Handle lists (simplified)
+                .replace(/\\begin\{itemize\}/g, '<ul style="list-style-type: disc; padding-left: 20px;">')
+                .replace(/\\end\{itemize\}/g, '</ul>')
+                .replace(/\\item\s+(.*)/g, '<li>$1</li>')
+                // Remove comments
+                .replace(/%.*$/gm, '')
+                // Handle documentclass/title stuff (hide header info or display it nicely)
+                .replace(/\\documentclass\{.*?\}/g, '')
+                .replace(/\\title\{(.*?)\}/g, '<h1 style="text-align:center">$1</h1>')
+                .replace(/\\author\{(.*?)\}/g, '<p style="text-align:center"><b>$1</b></p>')
+                .replace(/\\date\{(.*?)\}/g, '<p style="text-align:center">$1</p>');
+
+            // Basic newline handling
+            htmlContent = htmlContent.split('\n').map(line => {
+                // If line isn't a tag we just created, wrap in p if empty
+                if(line.trim() === '') return '<br>';
+                // Prevent wrapping existing HTML block tags in P
+                if(line.trim().startsWith('<h') || line.trim().startsWith('<ul') || line.trim().startsWith('<li')) return line;
+                return line; 
+            }).join('\n');
+
+            paper.innerHTML = htmlContent;
+
+            // Trigger MathJax to typeset the new content
+            if (window.MathJax) {
+                try {
+                    await window.MathJax.typesetPromise([paper]);
+                    showStatus('Compiled Successfully');
+                } catch (err) {
+                    console.error(err);
+                    showStatus('Compilation Error');
+                }
+            }
+        }, 800); // 800ms delay
+
+        // Listen for typing
+        textarea.addEventListener('input', updatePreview);
+
+        // Insert text at cursor position
+        function insertAtCursor(text) {
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const val = textarea.value;
+            
+            // If text selected, wrap it? For simplicity, we just insert.
+            // A smarter implementation would put selection inside braces.
+            const before = val.substring(0, start);
+            const after = val.substring(end, val.length);
+            
+            textarea.value = before + text + after;
+            
+            // Move cursor to inside the brackets if possible
+            let newPos = start + text.length;
+            if(text.includes('{}')) {
+                newPos = start + text.indexOf('{}') + 1;
+            }
+            
+            textarea.focus();
+            textarea.selectionStart = textarea.selectionEnd = newPos;
+            updatePreview();
+        }
+
+        // Clear Editor
+        function clearEditor() {
+            if(confirm("Are you sure you want to clear the editor?")) {
+                textarea.value = "";
+                updatePreview();
+            }
+        }
+
+        // Load Example
+        function loadExample() {
+            if(confirm("Load example? Current unsaved changes will be lost.")) {
+                textarea.value = defaultContent;
+                updatePreview();
+            }
+        }
+
+        // Generate PDF
+        function generatePDF() {
+            // Trigger browser print dialog
+            // The @media print CSS will handle hiding the UI and styling the paper
+            window.print();
+        }
+    </script>
+</body>
+</html>
